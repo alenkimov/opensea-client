@@ -1,0 +1,871 @@
+openapi: 3.1.0
+info:
+  title: OpenSea API
+  description: The API for OpenSea
+  contact:
+    name: OpenSea
+    url: https://www.opensea.io
+    email: contact@opensea.io
+  version: 2.0.0
+servers:
+  - url: https://api.opensea.io
+    description: OpenSea API server
+security:
+  - ApiKeyAuth: []
+tags:
+  - name: Chain Endpoints
+    description: Chain endpoints to discover supported blockchains and their capabilities
+  - name: Account Endpoints
+    description: Account endpoints to retrieve OpenSea account profiles and resolve identifiers
+  - name: Collection Endpoints
+    description: Collection endpoints to retrieve collection details, traits, and trending data
+  - name: NFT Endpoints
+    description: NFT endpoints to retrieve individual NFTs, metadata, ownership, and rarity
+  - name: Contract Endpoints
+    description: Contract endpoints to retrieve contract metadata and payment token details
+  - name: Token Endpoints
+    description: Token endpoints for getting token details, balances, and trending data
+  - name: Search Endpoints
+    description: Search endpoints for discovering collections, tokens, NFTs, and accounts
+  - name: Listing Endpoints
+    description: Listing endpoints for creating, fulfilling, and querying listings
+  - name: Offer Endpoints
+    description: Offer endpoints for building, creating, fulfilling, and querying offers
+  - name: Order Endpoints
+    description: Order endpoints for looking up and canceling individual orders
+  - name: Swap Endpoints
+    description: Swap endpoints for getting token swap quotes with executable transaction data
+  - name: Drops Endpoints
+    description: Endpoints for discovering drops, checking mint eligibility, and building mint transactions
+  - name: Analytics Endpoints
+    description: Analytics endpoints to retrieve events, stats, and trading data
+  - name: Tool Endpoints [Beta]
+    description: '[Beta] Tool endpoints for discovering and inspecting registered onchain tools. This API is under active development and may change without notice.'
+  - name: Transaction Endpoints
+    description: Transaction endpoints for checking transaction receipts and status
+paths:
+  /api/v2/events/collection/{slug}:
+    get:
+      tags:
+        - Analytics Endpoints
+      summary: Get events (by collection)
+      description: Get a list of events for a collection. Optionally filter by traits to only return events for items matching the specified trait criteria.
+      operationId: list_events_by_collection
+      parameters:
+        - name: slug
+          in: path
+          description: Unique identifier for the collection
+          required: true
+          schema:
+            type: string
+          example: doodles-official
+        - name: after
+          in: query
+          description: Only show events after this timestamp (Unix timestamp in seconds)
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: before
+          in: query
+          description: Only show events before this timestamp (Unix timestamp in seconds)
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: event_type
+          in: query
+          description: Filter by event types. To get order invalidation and revalidation events, please use the Stream API. The order status can also be checked on the Get Order endpoint.
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              enum:
+                - sale
+                - transfer
+                - mint
+                - listing
+                - offer
+                - trait_offer
+                - collection_offer
+        - name: traits
+          in: query
+          description: 'JSON array of trait filters. Each object has ''traitType'' and ''value'' fields. Multiple traits are AND-combined (items must match all). Example: [{"traitType":"Background","value":"Red"}]'
+          required: false
+          schema:
+            type: string
+          example: '[{"traitType":"Background","value":"Red"}]'
+        - name: limit
+          in: query
+          description: Number of items to return per page
+          required: false
+          schema:
+            type: integer
+            format: int32
+            description: Number of items to return per page
+            example: 20
+            maximum: 200
+            minimum: 1
+          example: 20
+        - name: next
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/AssetEventsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v2/collections/{slug}/stats:
+    get:
+      tags:
+        - Collection Endpoints
+        - Analytics Endpoints
+      summary: Get collection stats
+      description: Get comprehensive statistics for a collection including volume, floor price, and trading metrics.
+      operationId: get_collection_stats
+      parameters:
+        - name: slug
+          in: path
+          description: Unique identifier for the specific collection
+          required: true
+          schema:
+            type: string
+          example: doodles-official
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/CollectionStatsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v2/collection/{slug}/nfts:
+    get:
+      tags:
+        - NFT Endpoints
+      summary: Get NFTs by collection
+      description: 'Get NFTs in a specific collection. Optionally filter by traits using the ''traits'' query parameter with a JSON array of trait filters. Multiple traits are AND-combined (items must match all specified traits). Example: ?traits=[{"traitType":"Background","value":"Red"},{"traitType":"Eyes","value":"Blue"}]'
+      operationId: get_nfts_by_collection
+      parameters:
+        - name: slug
+          in: path
+          description: Collection slug
+          required: true
+          schema:
+            type: string
+        - name: traits
+          in: query
+          description: 'JSON array of trait filters. Each object has ''traitType'' and ''value'' fields. Multiple traits are AND-combined (items must match all). Example: [{"traitType":"Background","value":"Red"}]'
+          required: false
+          schema:
+            type: string
+          example: '[{"traitType":"Background","value":"Red"}]'
+        - name: has_agent_binding
+          in: query
+          description: Filter by NFTs that have an ERC-8217 agent binding
+          required: false
+          schema:
+            type: boolean
+        - name: limit
+          in: query
+          description: Number of items to return per page
+          required: false
+          schema:
+            type: integer
+            format: int32
+            description: Number of items to return per page
+            example: 20
+            maximum: 200
+            minimum: 1
+          example: 20
+        - name: next
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/NftListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v2/chain/{chain}/contract/{address}/nfts/{identifier}:
+    get:
+      tags:
+        - NFT Endpoints
+      summary: Get NFT
+      description: Get metadata, traits, ownership information, and rarity for a single NFT.
+      operationId: get_nft
+      parameters:
+        - name: chain
+          in: path
+          description: The blockchain on which to filter the results
+          required: true
+          schema:
+            $ref: '#/components/schemas/ChainIdentifier'
+          example: ethereum
+        - name: address
+          in: path
+          description: The unique public blockchain identifier for the contract
+          required: true
+          schema:
+            type: string
+          example: 0x8ba1f109551bD432803012645Hac136c94C19D6e
+        - name: identifier
+          in: path
+          description: The NFT token id
+          required: true
+          schema:
+            type: string
+          example: '1'
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/NftResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  schemas:
+    ChainIdentifier:
+      type: string
+      default: ethereum
+      description: Blockchain chain identifier. Use the chain slug (e.g., 'ethereum', 'polygon', 'arbitrum', 'optimism', 'base')
+      enum:
+        - blast
+        - base
+        - ethereum
+        - zora
+        - arbitrum
+        - sei
+        - avalanche
+        - polygon
+        - optimism
+        - ape_chain
+        - flow
+        - b3
+        - soneium
+        - ronin
+        - bera_chain
+        - solana
+        - shape
+        - unichain
+        - gunzilla
+        - abstract
+        - animechain
+        - hyperevm
+        - somnia
+        - monad
+        - hyperliquid
+        - megaeth
+        - ink
+        - robinhood
+        - stablechain
+      example: ethereum
+    CollectionInner:
+      type: object
+      properties:
+        slug:
+          type: string
+      required:
+        - slug
+    ContractInner:
+      type: object
+      properties:
+        address:
+          type: string
+      required:
+        - address
+    Criteria:
+      type: object
+      properties:
+        collection:
+          $ref: '#/components/schemas/CollectionInner'
+        contract:
+          $ref: '#/components/schemas/ContractInner'
+        traits:
+          type: array
+          items:
+            $ref: '#/components/schemas/TraitData'
+        numeric_traits:
+          type: array
+          items:
+            $ref: '#/components/schemas/NumericTraitData'
+        encoded_token_ids:
+          type: string
+    NumericTraitData:
+      type: object
+      properties:
+        type:
+          type: string
+        min:
+          type: number
+          format: float
+        max:
+          type: number
+          format: float
+      required:
+        - type
+    TraitData:
+      type: object
+      properties:
+        type:
+          type: string
+        value:
+          type: string
+      required:
+        - type
+        - value
+    AgentBindingResponse:
+      type: object
+      properties:
+        agent_id:
+          type: string
+        binding_contract:
+          type: string
+        agent:
+          $ref: '#/components/schemas/AgentNftResponse'
+        registered_by:
+          type: string
+      required:
+        - agent
+        - agent_id
+        - binding_contract
+    AgentNftResponse:
+      type: object
+      properties:
+        chain:
+          type: string
+        token_id:
+          type: string
+        contract_address:
+          type: string
+      required:
+        - chain
+        - contract_address
+        - token_id
+    Nft:
+      type: object
+      properties:
+        identifier:
+          type: string
+        collection:
+          type: string
+        contract:
+          type: string
+        token_standard:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        image_url:
+          type: string
+        display_image_url:
+          type: string
+        display_animation_url:
+          type: string
+        metadata_url:
+          type: string
+        opensea_url:
+          type: string
+        updated_at:
+          type: string
+        is_disabled:
+          type: boolean
+        is_nsfw:
+          type: boolean
+        original_image_url:
+          type: string
+        original_animation_url:
+          type: string
+        traits:
+          type: array
+          items:
+            $ref: '#/components/schemas/Trait'
+        estimated_value_usd:
+          type: number
+          format: double
+        decimals:
+          type: integer
+          format: int32
+      required:
+        - collection
+        - contract
+        - identifier
+        - is_disabled
+        - is_nsfw
+        - opensea_url
+        - token_standard
+        - traits
+        - updated_at
+    NftDetailed:
+      type: object
+      properties:
+        identifier:
+          type: string
+        collection:
+          type: string
+        contract:
+          type: string
+        token_standard:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        image_url:
+          type: string
+        display_image_url:
+          type: string
+        display_animation_url:
+          type: string
+        metadata_url:
+          type: string
+        opensea_url:
+          type: string
+        updated_at:
+          type: string
+        is_disabled:
+          type: boolean
+        is_nsfw:
+          type: boolean
+        original_image_url:
+          type: string
+        original_animation_url:
+          type: string
+        traits:
+          type: array
+          items:
+            $ref: '#/components/schemas/Trait'
+        estimated_value_usd:
+          type: number
+          format: double
+        decimals:
+          type: integer
+          format: int32
+        animation_url:
+          type: string
+        is_suspicious:
+          type: boolean
+        creator:
+          type: string
+        owners:
+          type: array
+          items:
+            $ref: '#/components/schemas/Owner'
+        rarity:
+          $ref: '#/components/schemas/Rarity'
+        subscription:
+          $ref: '#/components/schemas/SubscriptionInfoResponse'
+        agent_binding:
+          $ref: '#/components/schemas/AgentBindingResponse'
+      required:
+        - collection
+        - contract
+        - creator
+        - identifier
+        - is_disabled
+        - is_nsfw
+        - is_suspicious
+        - opensea_url
+        - owners
+        - token_standard
+        - traits
+        - updated_at
+    Owner:
+      type: object
+      properties:
+        address:
+          type: string
+        quantity:
+          type: integer
+          format: int32
+        quantity_string:
+          type: string
+      required:
+        - address
+        - quantity
+        - quantity_string
+    Rarity:
+      type: object
+      properties:
+        strategy_id:
+          type: string
+        strategy_version:
+          type: string
+        rank:
+          type: integer
+          format: int64
+      required:
+        - strategy_id
+        - strategy_version
+    SubscriptionInfoResponse:
+      type: object
+      properties:
+        expires_at:
+          type: number
+          format: double
+          description: Unix timestamp in seconds, including fractional seconds
+        is_renewable:
+          type: boolean
+        is_expired:
+          type: boolean
+      required:
+        - is_expired
+        - is_renewable
+    Trait:
+      type: object
+      properties:
+        trait_type:
+          type: string
+        display_type:
+          type: string
+        max_value:
+          type: string
+        value: {}
+      required:
+        - trait_type
+        - value
+    AssetEventsResponse:
+      type: object
+      properties:
+        asset_events:
+          type: array
+          items:
+            oneOf:
+              - $ref: '#/components/schemas/OrderEvent'
+              - $ref: '#/components/schemas/SaleEvent'
+              - $ref: '#/components/schemas/TransferEvent'
+        next:
+          type: string
+      required:
+        - asset_events
+    Event:
+      type: object
+    OrderEvent:
+      allOf:
+        - $ref: '#/components/schemas/Event'
+        - type: object
+          properties:
+            event_type:
+              type: string
+            event_timestamp:
+              type: integer
+              format: int64
+            transaction:
+              type: string
+            order_hash:
+              type: string
+            protocol_address:
+              type: string
+            chain:
+              type: string
+            payment:
+              $ref: '#/components/schemas/Payment'
+            order_type:
+              type: string
+            start_date:
+              type: integer
+              format: int64
+            expiration_date:
+              type: integer
+              format: int64
+            asset:
+              $ref: '#/components/schemas/Nft'
+            quantity:
+              type: integer
+              format: int64
+            maker:
+              type: string
+            taker:
+              type: string
+            criteria:
+              $ref: '#/components/schemas/Criteria'
+            is_private_listing:
+              type: boolean
+      required:
+        - chain
+        - event_timestamp
+        - event_type
+        - is_private_listing
+        - maker
+        - order_type
+        - quantity
+    Payment:
+      type: object
+      properties:
+        quantity:
+          type: string
+        token_address:
+          type: string
+        decimals:
+          type: integer
+          format: int32
+        symbol:
+          type: string
+      required:
+        - decimals
+        - quantity
+        - symbol
+        - token_address
+    SaleEvent:
+      allOf:
+        - $ref: '#/components/schemas/Event'
+        - type: object
+          properties:
+            event_type:
+              type: string
+            event_timestamp:
+              type: integer
+              format: int64
+            transaction:
+              type: string
+            order_hash:
+              type: string
+            protocol_address:
+              type: string
+            chain:
+              type: string
+            payment:
+              $ref: '#/components/schemas/Payment'
+            closing_date:
+              type: integer
+              format: int64
+            seller:
+              type: string
+            buyer:
+              type: string
+            quantity:
+              type: integer
+              format: int64
+            nft:
+              $ref: '#/components/schemas/Nft'
+      required:
+        - buyer
+        - chain
+        - closing_date
+        - event_timestamp
+        - event_type
+        - quantity
+        - seller
+    TransferEvent:
+      allOf:
+        - $ref: '#/components/schemas/Event'
+        - type: object
+          properties:
+            event_type:
+              type: string
+            event_timestamp:
+              type: integer
+              format: int64
+            transaction:
+              type: string
+            order_hash:
+              type: string
+            protocol_address:
+              type: string
+            chain:
+              type: string
+            payment:
+              $ref: '#/components/schemas/Payment'
+            transfer_type:
+              type: string
+            from_address:
+              type: string
+            to_address:
+              type: string
+            nft:
+              $ref: '#/components/schemas/Nft'
+            quantity:
+              type: integer
+              format: int64
+      required:
+        - chain
+        - event_timestamp
+        - event_type
+        - from_address
+        - quantity
+        - to_address
+        - transfer_type
+    CollectionStatsResponse:
+      type: object
+      properties:
+        total:
+          $ref: '#/components/schemas/Total'
+        intervals:
+          type: array
+          items:
+            $ref: '#/components/schemas/IntervalStat'
+      required:
+        - intervals
+        - total
+    IntervalStat:
+      type: object
+      properties:
+        interval:
+          type: string
+        volume:
+          type: number
+          format: double
+        sales:
+          type: integer
+          format: int32
+      required:
+        - interval
+        - sales
+        - volume
+    Total:
+      type: object
+      properties:
+        volume:
+          type: number
+          format: double
+        sales:
+          type: integer
+          format: int32
+        num_owners:
+          type: integer
+          format: int64
+        floor_price:
+          type: number
+          format: double
+        floor_price_symbol:
+          type: string
+      required:
+        - floor_price
+        - floor_price_symbol
+        - num_owners
+        - sales
+        - volume
+    NftListResponse:
+      type: object
+      properties:
+        nfts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Nft'
+        next:
+          type: string
+      required:
+        - nfts
+    NftResponse:
+      type: object
+      properties:
+        nft:
+          $ref: '#/components/schemas/NftDetailed'
+      required:
+        - nft
+    BitcoinAddress:
+      allOf:
+        - $ref: '#/components/schemas/BlockchainAddress'
+        - type: object
+          properties:
+            validate:
+              type: boolean
+              writeOnly: true
+      required:
+        - value
+    BlockchainAddress:
+      type: object
+      discriminator:
+        propertyName: '@type'
+      properties:
+        value:
+          type: string
+        '@type':
+          type: string
+      required:
+        - '@type'
+        - value
+    EvmAddress:
+      allOf:
+        - $ref: '#/components/schemas/BlockchainAddress'
+        - type: object
+          properties:
+            validate:
+              type: boolean
+              writeOnly: true
+            skipLowercase:
+              type: boolean
+              writeOnly: true
+      required:
+        - value
+    SolanaAddress:
+      allOf:
+        - $ref: '#/components/schemas/BlockchainAddress'
+        - type: object
+          properties:
+            validate:
+              type: boolean
+              writeOnly: true
+      required:
+        - value
+  responses:
+    BadRequest:
+      description: For error reasons, review the response data.
+    NotFound:
+      description: Resource not found
+    InternalError:
+      description: Internal server error. Please open a support ticket so OpenSea can investigate.
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      description: API key required for authentication
+      name: x-api-key
+      in: header
+x-tagGroups:
+  - name: Data & Discovery
+    tags:
+      - Chain Endpoints
+      - Account Endpoints
+      - Collection Endpoints
+      - NFT Endpoints
+      - Contract Endpoints
+      - Token Endpoints
+      - Search Endpoints
+  - name: Marketplace & Trading
+    tags:
+      - Listing Endpoints
+      - Offer Endpoints
+      - Order Endpoints
+      - Swap Endpoints
+      - Drops Endpoints
+  - name: Analytics & Events
+    tags:
+      - Analytics Endpoints
+  - name: Tools [Beta]
+    tags:
+      - Tool Endpoints [Beta]
+  - name: Transactions
+    tags:
+      - Transaction Endpoints

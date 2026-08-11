@@ -1,0 +1,6 @@
+content_type_overrides:
+  "*/*": "application/json"
+
+post_hooks:
+  - "ruff check . --fix-only"
+  - "ruff format ."

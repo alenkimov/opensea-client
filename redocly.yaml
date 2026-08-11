@@ -1,0 +1,27 @@
+extends:
+  - recommended
+
+plugins:
+  - ./redocly-opensea-fixes.js
+
+rules:
+  info-license: off
+
+apis:
+  opensea:
+    root: ./opensea-api.json
+
+    decorators:
+      opensea-fixes/fix-empty-event-schema: on
+      opensea-fixes/stringify-string-parameter-examples: on
+
+      filter-in:
+        applyTo: Operation
+        property: operationId
+        value:
+          - list_events_by_collection
+          - get_collection_stats
+          - get_nfts_by_collection
+          - get_nft
+
+      remove-unused-components: on
