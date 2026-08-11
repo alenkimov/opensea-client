@@ -1,20 +1,24 @@
+import json
 from collections.abc import Sequence
+from decimal import Decimal
 from types import TracebackType
 from typing import Self, TypeVar
 from urllib.parse import quote
 
 import httpx
 from better_proxy import Proxy
-from pydantic import TypeAdapter, ValidationError
+from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from ._envelopes import (
     _ASSET_EVENTS_ADAPTER,
+    _COLLECTION_OFFER_AGGREGATES_ADAPTER,
     _COLLECTION_SALES_ADAPTER,
     _COLLECTION_STATS_ADAPTER,
     _NFT_ADAPTER,
     _NFT_LIST_ADAPTER,
+    _TOP_COLLECTIONS_ADAPTER,
 )
-from .enums import ChainIdentifier, EventType
+from .enums import ChainIdentifier, EventType, SortDirection, TopCollectionsSortBy
 from .errors import (
     OpenSeaAPIError,
     OpenSeaBadRequestError,
@@ -25,7 +29,10 @@ from .errors import (
 )
 from .models import (
     AssetEvent,
+    Collection,
+    CollectionDetailed,
     CollectionIntervalStat,
+    CollectionOfferAggregate,
     Nft,
     NftDetailed,
     SaleEvent,
@@ -35,6 +42,7 @@ from .models import (
 _DEFAULT_BASE_URL = "https://api.opensea.io"
 _ERROR_BODY_LIMIT = 1_000
 _EnvelopeT = TypeVar("_EnvelopeT")
+_ModelT = TypeVar("_ModelT", bound=BaseModel)
 
 
 class OpenSeaClient:
@@ -97,6 +105,34 @@ class OpenSeaClient:
         )
         return envelope["asset_events"], envelope.get("next")
 
+    async def get_top_collections(
+        self,
+        *,
+        sort_by: TopCollectionsSortBy = TopCollectionsSortBy.ONE_DAY_VOLUME,
+        chains: Sequence[ChainIdentifier] | None = None,
+        category: str | None = None,
+        limit: int = 50,
+        cursor: str | None = None,
+    ) -> tuple[list[Collection], str | None]:
+        """Return ranked collections and the next-page cursor."""
+        self._validate_limit(limit, maximum=100)
+        params: list[tuple[str, str | int]] = [("sort_by", sort_by.value)]
+        if chains is not None:
+            params.append(("chains", ",".join(chain.value for chain in chains)))
+        self._append_optional(params, "category", category)
+        params.append(("limit", limit))
+        self._append_optional(params, "cursor", cursor)
+
+        envelope = await self._get_envelope(
+            "/api/v2/collections/top", params, _TOP_COLLECTIONS_ADAPTER
+        )
+        return envelope["collections"], envelope.get("next")
+
+    async def get_collection(self, slug: str) -> CollectionDetailed:
+        """Return one collection with its detailed metadata."""
+        slug_path = quote(slug, safe="")
+        return await self._get_model(f"/api/v2/collections/{slug_path}", [], CollectionDetailed)
+
     async def get_collection_sales(
         self,
         slug: str,
@@ -132,6 +168,28 @@ class OpenSeaClient:
             f"/api/v2/collections/{slug_path}/stats", [], _COLLECTION_STATS_ADAPTER
         )
         return envelope["intervals"], envelope["total"]
+
+    async def get_collection_offer_aggregates(
+        self,
+        slug: str,
+        *,
+        limit: int = 20,
+        cursor: str | None = None,
+        sort_direction: SortDirection = SortDirection.DESC,
+    ) -> tuple[list[CollectionOfferAggregate], str | None]:
+        """Return collection offer aggregates and the next-page cursor."""
+        self._validate_limit(limit, maximum=100)
+        params: list[tuple[str, str | int]] = [("limit", limit)]
+        self._append_optional(params, "cursor", cursor)
+        params.append(("sort_direction", sort_direction.value))
+
+        slug_path = quote(slug, safe="")
+        envelope = await self._get_envelope(
+            f"/api/v2/collections/{slug_path}/offer_aggregates",
+            params,
+            _COLLECTION_OFFER_AGGREGATES_ADAPTER,
+        )
+        return envelope["offer_aggregates"], envelope.get("next")
 
     async def get_nfts_by_collection(
         self,
@@ -197,8 +255,27 @@ class OpenSeaClient:
     ) -> _EnvelopeT:
         response = await self._request("GET", path, params=params)
         try:
-            return adapter.validate_json(response.content)
-        except ValidationError as exc:
+            payload = json.loads(response.content, parse_float=Decimal)
+            return adapter.validate_python(payload)
+        except (ValueError, ValidationError) as exc:
+            safe_url = str(response.request.url.copy_with(query=None))
+            raise OpenSeaInvalidResponseError(
+                status_code=response.status_code,
+                method=response.request.method,
+                url=safe_url,
+            ) from exc
+
+    async def _get_model(
+        self,
+        path: str,
+        params: list[tuple[str, str | int]],
+        model_type: type[_ModelT],
+    ) -> _ModelT:
+        response = await self._request("GET", path, params=params)
+        try:
+            payload = json.loads(response.content, parse_float=Decimal)
+            return model_type.model_validate(payload)
+        except (ValueError, ValidationError) as exc:
             safe_url = str(response.request.url.copy_with(query=None))
             raise OpenSeaInvalidResponseError(
                 status_code=response.status_code,
@@ -261,6 +338,6 @@ class OpenSeaClient:
             params.append((name, value))
 
     @staticmethod
-    def _validate_limit(limit: int | None) -> None:
-        if limit is not None and not 1 <= limit <= 200:
-            raise ValueError("limit must be between 1 and 200")
+    def _validate_limit(limit: int | None, *, maximum: int = 200) -> None:
+        if limit is not None and not 1 <= limit <= maximum:
+            raise ValueError(f"limit must be between 1 and {maximum}")

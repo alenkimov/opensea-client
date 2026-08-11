@@ -1,6 +1,9 @@
 {
   "private": true,
   "type": "module",
+  "scripts": {
+    "openapi:filter": "redocly bundle opensea --output opensea-filtered.yaml"
+  },
   "devDependencies": {
     "@redocly/cli": "^2.46.1"
   }

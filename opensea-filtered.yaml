@@ -44,6 +44,34 @@ tags:
   - name: Transaction Endpoints
     description: Transaction endpoints for checking transaction receipts and status
 paths:
+  /api/v2/collections/{slug}:
+    get:
+      tags:
+        - Collection Endpoints
+      summary: Get a single collection
+      description: Get a single collection including details such as fees, traits, and links.
+      operationId: get_collection
+      parameters:
+        - name: slug
+          in: path
+          description: Unique identifier for the specific collection
+          required: true
+          schema:
+            type: string
+          example: doodles-official
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/CollectionDetailedResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/v2/events/collection/{slug}:
     get:
       tags:
@@ -153,6 +181,113 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v2/collections/{slug}/offer_aggregates:
+    get:
+      tags:
+        - Collection Endpoints
+      summary: Get collection offer aggregates
+      description: Get aggregated offer buckets grouped by price level for a collection.
+      operationId: get_collection_offer_aggregates
+      parameters:
+        - name: slug
+          in: path
+          description: Collection slug
+          required: true
+          schema:
+            type: string
+          example: boredapeyachtclub
+        - name: limit
+          in: query
+          description: 'Number of results to return (default: 20, max: 100)'
+          required: false
+          schema:
+            type: integer
+            format: int32
+            default: 20
+          example: 20
+        - name: cursor
+          in: query
+          description: Pagination cursor for next page
+          required: false
+          schema:
+            type: string
+        - name: sort_direction
+          in: query
+          description: Sort direction (asc or desc)
+          required: false
+          schema:
+            type: string
+            default: desc
+          example: desc
+      responses:
+        '200':
+          description: Collection offer aggregates
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/CollectionOfferAggregatesPaginatedResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v2/collections/top:
+    get:
+      tags:
+        - Collection Endpoints
+      summary: Get top collections
+      description: 'Get top NFT collections ranked by various stats (sorted descending). Unlike /trending, results are not filtered by verification status; spam-tagged collections are excluded via trust-safety enforcement states. Available sort options: one_day_volume, seven_days_volume, thirty_days_volume, floor_price, one_day_sales, seven_days_sales, thirty_days_sales, total_volume, total_sales.'
+      operationId: get_top_collections
+      parameters:
+        - name: sort_by
+          in: query
+          description: 'The stat to sort collections by (always sorted descending). Options: one_day_volume, seven_days_volume, thirty_days_volume, floor_price, one_day_sales, seven_days_sales, thirty_days_sales, total_volume, total_sales'
+          required: false
+          schema:
+            type: string
+            default: one_day_volume
+          example: one_day_volume
+        - name: chains
+          in: query
+          description: Blockchain(s) to filter by. Comma-separated list of chain identifiers. Unsupported chains are silently ignored; a 400 is returned only if all specified chains are unsupported.
+          required: false
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/ChainIdentifier'
+          example: ethereum,base
+        - name: category
+          in: query
+          description: Category to filter by (e.g. art, gaming, memberships, music, pfps, photography, domain-names, virtual-worlds, sports-collectibles, physical-collectibles).
+          required: false
+          schema:
+            type: string
+          example: pfps
+        - name: limit
+          in: query
+          description: Maximum number of collections to return (1-100).
+          required: false
+          schema:
+            type: integer
+            format: int32
+            default: 50
+          example: 50
+        - name: cursor
+          in: query
+          description: Cursor for pagination
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Top collections list
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/CollectionPaginatedResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '500':
           $ref: '#/components/responses/InternalError'
   /api/v2/collection/{slug}/nfts:
@@ -556,6 +691,71 @@ components:
       required:
         - trait_type
         - value
+    CollectionResponse:
+      type: object
+      properties:
+        collection:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        image_url:
+          type: string
+        banner_image_url:
+          type: string
+        owner:
+          type: string
+        safelist_status:
+          type: string
+        category:
+          type: string
+        is_disabled:
+          type: boolean
+        is_nsfw:
+          type: boolean
+        trait_offers_enabled:
+          type: boolean
+        collection_offers_enabled:
+          type: boolean
+        opensea_url:
+          type: string
+        project_url:
+          type: string
+        wiki_url:
+          type: string
+        discord_url:
+          type: string
+        telegram_url:
+          type: string
+        twitter_username:
+          type: string
+        instagram_username:
+          type: string
+        contracts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Contract'
+      required:
+        - collection
+        - collection_offers_enabled
+        - contracts
+        - is_disabled
+        - is_nsfw
+        - name
+        - opensea_url
+        - safelist_status
+        - trait_offers_enabled
+    Contract:
+      type: object
+      properties:
+        address:
+          type: string
+        chain:
+          type: string
+      required:
+        - address
+        - chain
     AssetEventsResponse:
       type: object
       properties:
@@ -717,6 +917,175 @@ components:
         - quantity
         - to_address
         - transfer_type
+    CollectionPaginatedResponse:
+      type: object
+      properties:
+        collections:
+          type: array
+          items:
+            $ref: '#/components/schemas/CollectionResponse'
+        next:
+          type: string
+      required:
+        - collections
+    CollectionDetailedResponse:
+      type: object
+      properties:
+        collection:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        image_url:
+          type: string
+        banner_image_url:
+          type: string
+        owner:
+          type: string
+        safelist_status:
+          type: string
+        category:
+          type: string
+        is_disabled:
+          type: boolean
+        is_nsfw:
+          type: boolean
+        trait_offers_enabled:
+          type: boolean
+        collection_offers_enabled:
+          type: boolean
+        opensea_url:
+          type: string
+        project_url:
+          type: string
+        wiki_url:
+          type: string
+        discord_url:
+          type: string
+        telegram_url:
+          type: string
+        twitter_username:
+          type: string
+        instagram_username:
+          type: string
+        contracts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Contract'
+        editors:
+          type: array
+          items:
+            type: string
+        fees:
+          type: array
+          items:
+            $ref: '#/components/schemas/Fee'
+        required_zone:
+          type: string
+        rarity:
+          $ref: '#/components/schemas/CollectionRarity'
+        total_supply:
+          type: integer
+          format: int64
+        unique_item_count:
+          type: integer
+          format: int64
+        created_date:
+          type: string
+          format: date
+        pricing_currencies:
+          $ref: '#/components/schemas/PricingCurrencies'
+      required:
+        - collection
+        - collection_offers_enabled
+        - contracts
+        - created_date
+        - editors
+        - fees
+        - is_disabled
+        - is_nsfw
+        - name
+        - opensea_url
+        - pricing_currencies
+        - safelist_status
+        - total_supply
+        - trait_offers_enabled
+        - unique_item_count
+    CollectionRarity:
+      type: object
+      properties:
+        calculated_at:
+          type: string
+        max_rank:
+          type: integer
+          format: int32
+        total_supply:
+          type: integer
+          format: int64
+        strategy_id:
+          type: string
+        strategy_version:
+          type: string
+      required:
+        - calculated_at
+        - max_rank
+        - strategy_id
+        - strategy_version
+        - total_supply
+    Fee:
+      type: object
+      properties:
+        fee:
+          type: number
+          format: double
+        recipient:
+          type: string
+        required:
+          type: boolean
+      required:
+        - fee
+        - recipient
+        - required
+    PaymentToken:
+      type: object
+      properties:
+        symbol:
+          type: string
+        address:
+          type: string
+        chain:
+          type: string
+        image:
+          type: string
+        name:
+          type: string
+        decimals:
+          type: integer
+          format: int32
+        eth_price:
+          type: string
+        usd_price:
+          type: string
+      required:
+        - address
+        - chain
+        - decimals
+        - eth_price
+        - image
+        - name
+        - symbol
+        - usd_price
+    PricingCurrencies:
+      type: object
+      properties:
+        listing_currency:
+          $ref: '#/components/schemas/PaymentToken'
+        offer_currency:
+          $ref: '#/components/schemas/PaymentToken'
+      required:
+        - listing_currency
+        - offer_currency
     CollectionStatsResponse:
       type: object
       properties:
@@ -767,6 +1136,79 @@ components:
         - num_owners
         - sales
         - volume
+    BidderResponse:
+      type: object
+      description: A bidder in an offer aggregate
+      properties:
+        address:
+          type: string
+          description: Wallet address of the bidder
+        quantity:
+          type: integer
+          format: int32
+          description: Number of offers from this bidder
+      required:
+        - address
+        - quantity
+    CollectionOfferAggregateResponse:
+      type: object
+      description: An aggregated offer bucket
+      properties:
+        offer_price:
+          $ref: '#/components/schemas/OfferAggregatePriceResponse'
+          description: Offer price level
+        total_value:
+          $ref: '#/components/schemas/OfferAggregatePriceResponse'
+          description: Total value of offers at this level
+        total_offers:
+          type: integer
+          format: int32
+          description: Total number of offers at this level
+        bidders:
+          type: array
+          description: Bidders at this price level
+          items:
+            $ref: '#/components/schemas/BidderResponse'
+      required:
+        - bidders
+        - offer_price
+        - total_offers
+        - total_value
+    CollectionOfferAggregatesPaginatedResponse:
+      type: object
+      description: Paginated list of collection offer aggregates
+      properties:
+        offer_aggregates:
+          type: array
+          description: List of offer aggregates
+          items:
+            $ref: '#/components/schemas/CollectionOfferAggregateResponse'
+        next:
+          type: string
+          description: Cursor for the next page of results
+      required:
+        - offer_aggregates
+    OfferAggregatePriceResponse:
+      type: object
+      description: Price information for an offer aggregate
+      properties:
+        usd_price:
+          type: string
+          description: Price in USD
+        token_unit:
+          type: number
+          format: double
+          description: Price in token units
+        symbol:
+          type: string
+          description: Payment token symbol
+        chain:
+          type: string
+          description: Blockchain chain
+      required:
+        - chain
+        - token_unit
+        - usd_price
     NftListResponse:
       type: object
       properties:

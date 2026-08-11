@@ -1,5 +1,7 @@
 import asyncio
 from collections.abc import Callable
+from datetime import date
+from decimal import Decimal
 
 import httpx
 import pytest
@@ -8,7 +10,10 @@ from better_proxy import Proxy
 import opensea.client as client_module
 from opensea import (
     ChainIdentifier,
+    Collection,
+    CollectionDetailed,
     CollectionIntervalStat,
+    CollectionOfferAggregate,
     EventType,
     OpenSeaAPIError,
     OpenSeaClient,
@@ -17,6 +22,8 @@ from opensea import (
     OpenSeaNotFoundError,
     OpenSeaTransportError,
     SaleEvent,
+    SortDirection,
+    TopCollectionsSortBy,
     TotalCollectionStats,
 )
 
@@ -43,6 +50,7 @@ def nft_payload(*, detailed: bool = False) -> dict[str, object]:
         "is_disabled": False,
         "is_nsfw": False,
         "traits": [],
+        "estimated_value_usd": 1234.56789,
     }
     if detailed:
         payload.update(
@@ -71,6 +79,63 @@ def sale_payload() -> dict[str, object]:
             "decimals": 18,
             "symbol": "WETH",
         },
+    }
+
+
+def payment_token_payload() -> dict[str, object]:
+    return {
+        "symbol": "WETH",
+        "address": "0xtoken",
+        "chain": "ethereum",
+        "image": "https://example.com/weth.png",
+        "name": "Wrapped Ether",
+        "decimals": 18,
+        "eth_price": "1.0",
+        "usd_price": "2500.0",
+    }
+
+
+def collection_payload(*, detailed: bool = False) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "collection": "example",
+        "name": "Example Collection",
+        "safelist_status": "verified",
+        "is_disabled": False,
+        "is_nsfw": False,
+        "trait_offers_enabled": True,
+        "collection_offers_enabled": True,
+        "opensea_url": "https://opensea.io/collection/example",
+        "contracts": [{"address": "0xabc", "chain": "ethereum"}],
+    }
+    if detailed:
+        payload.update(
+            {
+                "editors": ["0xeditor"],
+                "fees": [{"fee": 2.5, "recipient": "0xrecipient", "required": True}],
+                "total_supply": 10_000,
+                "unique_item_count": 9_500,
+                "created_date": "2024-01-02",
+                "pricing_currencies": {
+                    "listing_currency": payment_token_payload(),
+                    "offer_currency": payment_token_payload(),
+                },
+            }
+        )
+    return payload
+
+
+def offer_aggregate_payload() -> dict[str, object]:
+    price = {
+        "usd_price": "2500.0",
+        "token_unit": 1.0,
+        "symbol": "WETH",
+        "chain": "ethereum",
+    }
+    return {
+        "offer_price": price,
+        "total_value": {**price, "token_unit": 3.0, "usd_price": "7500.0"},
+        "total_offers": 3,
+        "bidders": [{"address": "0xbidder", "quantity": 3}],
     }
 
 
@@ -133,21 +198,100 @@ def test_get_collection_sales_forces_sale_filter() -> None:
     assert next_cursor is None
 
 
+def test_get_top_collections_serializes_filters_and_parses_page() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v2/collections/top"
+        assert request.url.params.multi_items() == [
+            ("sort_by", "total_volume"),
+            ("chains", "ethereum,base"),
+            ("category", "pfps"),
+            ("limit", "25"),
+            ("cursor", "current-page"),
+        ]
+        return httpx.Response(
+            200,
+            json={"collections": [collection_payload()], "next": "next-page"},
+        )
+
+    client, http_client = make_client(handler)
+    try:
+        collections, next_cursor = run(
+            client.get_top_collections(
+                sort_by=TopCollectionsSortBy.TOTAL_VOLUME,
+                chains=[ChainIdentifier.ETHEREUM, ChainIdentifier.BASE],
+                category="pfps",
+                limit=25,
+                cursor="current-page",
+            )
+        )
+    finally:
+        run(http_client.aclose())
+
+    assert isinstance(collections[0], Collection)
+    assert collections[0].contracts[0].chain == "ethereum"
+    assert next_cursor == "next-page"
+
+
+def test_get_collection_encodes_slug_and_parses_details() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.raw_path == b"/api/v2/collections/example%2Fcollection"
+        return httpx.Response(200, json=collection_payload(detailed=True))
+
+    client, http_client = make_client(handler)
+    try:
+        collection = run(client.get_collection("example/collection"))
+    finally:
+        run(http_client.aclose())
+
+    assert isinstance(collection, CollectionDetailed)
+    assert collection.created_date == date(2024, 1, 2)
+    assert collection.fees[0].fee == Decimal("2.5")
+    assert collection.pricing_currencies.offer_currency.symbol == "WETH"
+
+
+def test_get_collection_offer_aggregates_serializes_page_options() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v2/collections/example/offer_aggregates"
+        assert request.url.params.multi_items() == [
+            ("limit", "10"),
+            ("cursor", "current-page"),
+            ("sort_direction", "asc"),
+        ]
+        return httpx.Response(
+            200,
+            json={"offer_aggregates": [offer_aggregate_payload()], "next": "next-page"},
+        )
+
+    client, http_client = make_client(handler)
+    try:
+        aggregates, next_cursor = run(
+            client.get_collection_offer_aggregates(
+                "example",
+                limit=10,
+                cursor="current-page",
+                sort_direction=SortDirection.ASC,
+            )
+        )
+    finally:
+        run(http_client.aclose())
+
+    assert isinstance(aggregates[0], CollectionOfferAggregate)
+    assert aggregates[0].offer_price.token_unit == Decimal("1.0")
+    assert aggregates[0].bidders[0].quantity == 3
+    assert next_cursor == "next-page"
+
+
 def test_get_collection_stats() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/v2/collections/example/stats"
         return httpx.Response(
             200,
-            json={
-                "total": {
-                    "volume": 12.5,
-                    "sales": 3,
-                    "num_owners": 2,
-                    "floor_price": 1.25,
-                    "floor_price_symbol": "ETH",
-                },
-                "intervals": [{"interval": "one_day", "volume": 4.0, "sales": 1}],
-            },
+            content=(
+                b'{"total":{"volume":12.500000000001234567,"sales":3,'
+                b'"num_owners":2,"floor_price":0.020498799999,'
+                b'"floor_price_symbol":"ETH"},"intervals":[{"interval":"one_day",'
+                b'"volume":4.000000000001234567,"sales":1}]}'
+            ),
         )
 
     client, http_client = make_client(handler)
@@ -156,9 +300,11 @@ def test_get_collection_stats() -> None:
     finally:
         run(http_client.aclose())
 
-    assert total.floor_price == 1.25
+    assert total.floor_price == Decimal("0.020498799999")
+    assert total.volume == Decimal("12.500000000001234567")
     assert isinstance(total, TotalCollectionStats)
     assert isinstance(intervals[0], CollectionIntervalStat)
+    assert intervals[0].volume == Decimal("4.000000000001234567")
     assert intervals[0].interval == "one_day"
 
 
@@ -188,6 +334,7 @@ def test_get_nfts_by_collection_serializes_filters() -> None:
         run(http_client.aclose())
 
     assert nfts[0].identifier == "42"
+    assert nfts[0].estimated_value_usd == Decimal("1234.56789")
     assert next_cursor == "def"
 
 
@@ -271,6 +418,18 @@ def test_missing_envelope_payload_raises_typed_error() -> None:
         run(http_client.aclose())
 
 
+def test_get_collection_validates_direct_response_model() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={})
+
+    client, http_client = make_client(handler)
+    try:
+        with pytest.raises(OpenSeaInvalidResponseError):
+            run(client.get_collection("broken"))
+    finally:
+        run(http_client.aclose())
+
+
 def test_invalid_envelope_cursor_raises_typed_error() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"asset_events": [], "next": 123})
@@ -317,6 +476,8 @@ def test_limit_is_validated_before_request() -> None:
     try:
         with pytest.raises(ValueError, match="between 1 and 200"):
             run(client.get_nfts_by_collection("example", limit=201))
+        with pytest.raises(ValueError, match="between 1 and 100"):
+            run(client.get_top_collections(limit=101))
     finally:
         run(http_client.aclose())
 

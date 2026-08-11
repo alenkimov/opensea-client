@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import Any
 
 from .base import OpenSeaModel
@@ -41,7 +42,7 @@ class Nft(OpenSeaModel):
     metadata_url: str | None = None
     original_image_url: str | None = None
     original_animation_url: str | None = None
-    estimated_value_usd: float | None = None
+    estimated_value_usd: Decimal | None = None
     decimals: int | None = None
 
 
