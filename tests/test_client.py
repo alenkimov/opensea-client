@@ -338,6 +338,37 @@ def test_get_nfts_by_collection_serializes_filters() -> None:
     assert next_cursor == "def"
 
 
+def test_paginated_endpoints_accept_explicit_null_next() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/v2/collections/top":
+            payload: dict[str, object] = {"collections": [], "next": None}
+        elif request.url.path.endswith("/offer_aggregates"):
+            payload = {"offer_aggregates": [], "next": None}
+        elif request.url.path.endswith("/nfts"):
+            payload = {"nfts": [], "next": None}
+        else:
+            payload = {"asset_events": [], "next": None}
+        return httpx.Response(200, json=payload)
+
+    async def fetch_pages(client: OpenSeaClient) -> list[str | None]:
+        pages = [
+            await client.list_events_by_collection("example"),
+            await client.get_collection_sales("example"),
+            await client.get_top_collections(),
+            await client.get_collection_offer_aggregates("example"),
+            await client.get_nfts_by_collection("example"),
+        ]
+        return [next_cursor for _, next_cursor in pages]
+
+    client, http_client = make_client(handler)
+    try:
+        cursors = run(fetch_pages(client))
+    finally:
+        run(http_client.aclose())
+
+    assert cursors == [None, None, None, None, None]
+
+
 def test_get_nft_encodes_path_segments() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.raw_path == (

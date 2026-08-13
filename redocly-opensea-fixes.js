@@ -1,4 +1,11 @@
 export default function openseaFixes() {
+  const paginatedResponseSchemas = [
+    "AssetEventsResponse",
+    "CollectionOfferAggregatesPaginatedResponse",
+    "CollectionPaginatedResponse",
+    "NftListResponse",
+  ];
+
   return {
     id: "opensea-fixes",
 
@@ -27,6 +34,19 @@ export default function openseaFixes() {
               ) {
                 parameter.example =
                   typeof example === "object" ? JSON.stringify(example) : String(example);
+              }
+            },
+          },
+        }),
+        "make-pagination-next-nullable": () => ({
+          Root: {
+            leave(root) {
+              for (const schemaName of paginatedResponseSchemas) {
+                const next = root.components?.schemas?.[schemaName]?.properties?.next;
+
+                if (next?.type === "string") {
+                  next.type = ["string", "null"];
+                }
               }
             },
           },

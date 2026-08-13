@@ -13,6 +13,7 @@ apis:
 
     decorators:
       opensea-fixes/fix-empty-event-schema: on
+      opensea-fixes/make-pagination-next-nullable: on
       opensea-fixes/stringify-string-parameter-examples: on
 
       filter-in:

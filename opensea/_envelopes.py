@@ -16,12 +16,12 @@ from .models import (
 
 class _AssetEventsEnvelope(TypedDict):
     asset_events: list[AssetEvent]
-    next: NotRequired[str]
+    next: NotRequired[str | None]
 
 
 class _CollectionSalesEnvelope(TypedDict):
     asset_events: list[SaleEvent]
-    next: NotRequired[str]
+    next: NotRequired[str | None]
 
 
 class _CollectionStatsEnvelope(TypedDict):
@@ -31,17 +31,17 @@ class _CollectionStatsEnvelope(TypedDict):
 
 class _TopCollectionsEnvelope(TypedDict):
     collections: list[Collection]
-    next: NotRequired[str]
+    next: NotRequired[str | None]
 
 
 class _CollectionOfferAggregatesEnvelope(TypedDict):
     offer_aggregates: list[CollectionOfferAggregate]
-    next: NotRequired[str]
+    next: NotRequired[str | None]
 
 
 class _NftListEnvelope(TypedDict):
     nfts: list[Nft]
-    next: NotRequired[str]
+    next: NotRequired[str | None]
 
 
 class _NftEnvelope(TypedDict):

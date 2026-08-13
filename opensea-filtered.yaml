@@ -767,7 +767,9 @@ components:
               - $ref: '#/components/schemas/SaleEvent'
               - $ref: '#/components/schemas/TransferEvent'
         next:
-          type: string
+          type:
+            - string
+            - 'null'
       required:
         - asset_events
     Event:
@@ -925,7 +927,9 @@ components:
           items:
             $ref: '#/components/schemas/CollectionResponse'
         next:
-          type: string
+          type:
+            - string
+            - 'null'
       required:
         - collections
     CollectionDetailedResponse:
@@ -1184,7 +1188,9 @@ components:
           items:
             $ref: '#/components/schemas/CollectionOfferAggregateResponse'
         next:
-          type: string
+          type:
+            - string
+            - 'null'
           description: Cursor for the next page of results
       required:
         - offer_aggregates
@@ -1217,7 +1223,9 @@ components:
           items:
             $ref: '#/components/schemas/Nft'
         next:
-          type: string
+          type:
+            - string
+            - 'null'
       required:
         - nfts
     NftResponse:

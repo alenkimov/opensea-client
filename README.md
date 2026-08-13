@@ -43,6 +43,9 @@ asyncio.run(main())
 
 - `list_events_by_collection()` → `(list[AssetEvent], next_cursor)`;
 - `get_collection_sales()` → `(list[SaleEvent], next_cursor)`;
+- `get_top_collections()` → `(list[Collection], next_cursor)`;
+- `get_collection()` → `CollectionDetailed`;
+- `get_collection_offer_aggregates()` → `(list[CollectionOfferAggregate], next_cursor)`;
 - `get_collection_stats()` → `(list[CollectionIntervalStat], TotalCollectionStats)`;
 - `get_nfts_by_collection()` → `(list[Nft], next_cursor)`;
 - `get_nft()` → `NftDetailed`.
