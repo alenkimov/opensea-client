@@ -14,11 +14,22 @@ from ._envelopes import (
     _COLLECTION_OFFER_AGGREGATES_ADAPTER,
     _COLLECTION_SALES_ADAPTER,
     _COLLECTION_STATS_ADAPTER,
+    _LISTINGS_ADAPTER,
     _NFT_ADAPTER,
     _NFT_LIST_ADAPTER,
+    _OFFERS_ADAPTER,
+    _TOKEN_BALANCES_ADAPTER,
     _TOP_COLLECTIONS_ADAPTER,
 )
-from .enums import ChainIdentifier, EventType, SortDirection, TopCollectionsSortBy
+from .enums import (
+    ChainIdentifier,
+    EventType,
+    ProfileOffersReceivedSortBy,
+    ProfileOrderSortBy,
+    SortDirection,
+    TokenBalanceSortBy,
+    TopCollectionsSortBy,
+)
 from .errors import (
     OpenSeaAPIError,
     OpenSeaBadRequestError,
@@ -33,9 +44,12 @@ from .models import (
     CollectionDetailed,
     CollectionIntervalStat,
     CollectionOfferAggregate,
+    Listing,
     Nft,
     NftDetailed,
+    Offer,
     SaleEvent,
+    TokenBalance,
     TotalCollectionStats,
 )
 
@@ -102,6 +116,71 @@ class OpenSeaClient:
         slug_path = quote(slug, safe="")
         envelope = await self._get_envelope(
             f"/api/v2/events/collection/{slug_path}", params, _ASSET_EVENTS_ADAPTER
+        )
+        return envelope["asset_events"], envelope.get("next")
+
+    async def list_events_by_account(
+        self,
+        address: str,
+        *,
+        after: int | None = None,
+        before: int | None = None,
+        event_type: EventType | Sequence[EventType] | None = None,
+        chain: ChainIdentifier | None = None,
+        limit: int | None = None,
+        next_cursor: str | None = None,
+    ) -> tuple[list[AssetEvent], str | None]:
+        """Return account events and the next-page cursor."""
+        self._validate_limit(limit)
+        params: list[tuple[str, str | int]] = []
+        self._append_optional(params, "after", after)
+        self._append_optional(params, "before", before)
+        if isinstance(event_type, EventType):
+            params.append(("event_type", event_type.value))
+        elif event_type is not None:
+            params.extend(("event_type", item.value) for item in event_type)
+        if chain is not None:
+            params.append(("chain", chain.value))
+        self._append_optional(params, "limit", limit)
+        self._append_optional(params, "next", next_cursor)
+
+        address_path = quote(address, safe="")
+        envelope = await self._get_envelope(
+            f"/api/v2/events/accounts/{address_path}", params, _ASSET_EVENTS_ADAPTER
+        )
+        return envelope["asset_events"], envelope.get("next")
+
+    async def list_events_by_nft(
+        self,
+        chain: ChainIdentifier,
+        address: str,
+        identifier: str,
+        *,
+        after: int | None = None,
+        before: int | None = None,
+        event_type: EventType | Sequence[EventType] | None = None,
+        limit: int | None = None,
+        next_cursor: str | None = None,
+    ) -> tuple[list[AssetEvent], str | None]:
+        """Return NFT events and the next-page cursor."""
+        self._validate_limit(limit)
+        params: list[tuple[str, str | int]] = []
+        self._append_optional(params, "after", after)
+        self._append_optional(params, "before", before)
+        if isinstance(event_type, EventType):
+            params.append(("event_type", event_type.value))
+        elif event_type is not None:
+            params.extend(("event_type", item.value) for item in event_type)
+        self._append_optional(params, "limit", limit)
+        self._append_optional(params, "next", next_cursor)
+
+        chain_path = quote(str(chain), safe="")
+        address_path = quote(address, safe="")
+        identifier_path = quote(identifier, safe="")
+        envelope = await self._get_envelope(
+            f"/api/v2/events/chain/{chain_path}/contract/{address_path}/nfts/{identifier_path}",
+            params,
+            _ASSET_EVENTS_ADAPTER,
         )
         return envelope["asset_events"], envelope.get("next")
 
@@ -215,6 +294,184 @@ class OpenSeaClient:
         )
         return envelope["nfts"], envelope.get("next")
 
+    async def get_nfts_by_account(
+        self,
+        chain: ChainIdentifier,
+        address: str,
+        *,
+        collection: str | None = None,
+        limit: int | None = None,
+        next_cursor: str | None = None,
+    ) -> tuple[list[Nft], str | None]:
+        """Return NFTs currently owned by an account and the next-page cursor."""
+        self._validate_limit(limit)
+        params: list[tuple[str, str | int]] = []
+        self._append_optional(params, "collection", collection)
+        self._append_optional(params, "limit", limit)
+        self._append_optional(params, "next", next_cursor)
+        chain_path = quote(str(chain), safe="")
+        address_path = quote(address, safe="")
+        envelope = await self._get_envelope(
+            f"/api/v2/chain/{chain_path}/account/{address_path}/nfts",
+            params,
+            _NFT_LIST_ADAPTER,
+        )
+        return envelope["nfts"], envelope.get("next")
+
+    async def get_token_balances_by_account(
+        self,
+        address: str,
+        *,
+        chains: Sequence[ChainIdentifier] | None = None,
+        limit: int = 20,
+        sort_by: TokenBalanceSortBy | None = None,
+        sort_direction: SortDirection = SortDirection.DESC,
+        disable_spam_filtering: bool = False,
+        cursor: str | None = None,
+    ) -> tuple[list[TokenBalance], str | None]:
+        """Return fungible token balances for an account."""
+        self._validate_limit(limit, maximum=100)
+        params: list[tuple[str, str | int]] = [("limit", limit)]
+        if chains is not None:
+            params.extend(("chains", chain.value) for chain in chains)
+        self._append_optional(params, "sort_by", sort_by.value if sort_by else None)
+        params.append(("sort_direction", sort_direction.value))
+        params.append(("disable_spam_filtering", str(disable_spam_filtering).lower()))
+        self._append_optional(params, "cursor", cursor)
+        address_path = quote(address, safe="")
+        envelope = await self._get_envelope(
+            f"/api/v2/account/{address_path}/tokens",
+            params,
+            _TOKEN_BALANCES_ADAPTER,
+        )
+        return envelope["token_balances"], envelope.get("next")
+
+    async def get_profile_offers(
+        self,
+        address: str,
+        *,
+        after: str | None = None,
+        limit: int = 50,
+        collection_slugs: Sequence[str] | None = None,
+        chains: Sequence[ChainIdentifier] | None = None,
+        sort_by: ProfileOrderSortBy = ProfileOrderSortBy.START_TIME,
+        sort_direction: SortDirection = SortDirection.DESC,
+    ) -> tuple[list[Offer], str | None]:
+        """Return active offers made by an account."""
+        return await self._get_profile_orders(
+            address,
+            received=False,
+            after=after,
+            limit=limit,
+            collection_slugs=collection_slugs,
+            chains=chains,
+            sort_by=sort_by,
+            sort_direction=sort_direction,
+        )
+
+    async def get_profile_offers_received(
+        self,
+        address: str,
+        *,
+        after: str | None = None,
+        limit: int = 50,
+        collection_slugs: Sequence[str] | None = None,
+        chains: Sequence[ChainIdentifier] | None = None,
+        sort_by: ProfileOffersReceivedSortBy = ProfileOffersReceivedSortBy.START_TIME,
+        sort_direction: SortDirection = SortDirection.DESC,
+    ) -> tuple[list[Offer], str | None]:
+        """Return active offers received by an account."""
+        return await self._get_profile_orders(
+            address,
+            received=True,
+            after=after,
+            limit=limit,
+            collection_slugs=collection_slugs,
+            chains=chains,
+            sort_by=sort_by,
+            sort_direction=sort_direction,
+        )
+
+    async def get_profile_listings(
+        self,
+        address: str,
+        *,
+        after: str | None = None,
+        limit: int = 50,
+        collection_slugs: Sequence[str] | None = None,
+        chains: Sequence[ChainIdentifier] | None = None,
+        sort_by: ProfileOrderSortBy = ProfileOrderSortBy.START_TIME,
+        sort_direction: SortDirection = SortDirection.DESC,
+    ) -> tuple[list[Listing], str | None]:
+        """Return active listings created by an account."""
+        params = self._profile_order_params(
+            after=after,
+            limit=limit,
+            collection_slugs=collection_slugs,
+            chains=chains,
+            sort_by=sort_by,
+            sort_direction=sort_direction,
+        )
+        address_path = quote(address, safe="")
+        envelope = await self._get_envelope(
+            f"/api/v2/account/{address_path}/listings", params, _LISTINGS_ADAPTER
+        )
+        return envelope["listings"], envelope.get("next")
+
+    async def get_best_offer_nft(self, slug: str, identifier: str) -> Offer:
+        """Return the best active offer for an NFT."""
+        slug_path = quote(slug, safe="")
+        identifier_path = quote(identifier, safe="")
+        return await self._get_model(
+            f"/api/v2/offers/collection/{slug_path}/nfts/{identifier_path}/best",
+            [],
+            Offer,
+        )
+
+    async def get_best_listing_nft(
+        self,
+        slug: str,
+        identifier: str,
+        *,
+        include_private_listings: bool | None = None,
+    ) -> Listing:
+        """Return the best active listing for an NFT."""
+        params: list[tuple[str, str | int]] = []
+        if include_private_listings is not None:
+            params.append(("include_private_listings", str(include_private_listings).lower()))
+        slug_path = quote(slug, safe="")
+        identifier_path = quote(identifier, safe="")
+        return await self._get_model(
+            f"/api/v2/listings/collection/{slug_path}/nfts/{identifier_path}/best",
+            params,
+            Listing,
+        )
+
+    async def get_best_listings_collection(
+        self,
+        slug: str,
+        *,
+        include_private_listings: bool | None = None,
+        traits: str | None = None,
+        limit: int | None = None,
+        next_cursor: str | None = None,
+    ) -> tuple[list[Listing], str | None]:
+        """Return the best active listings for a collection."""
+        self._validate_limit(limit)
+        params: list[tuple[str, str | int]] = []
+        if include_private_listings is not None:
+            params.append(("include_private_listings", str(include_private_listings).lower()))
+        self._append_optional(params, "traits", traits)
+        self._append_optional(params, "limit", limit)
+        self._append_optional(params, "next", next_cursor)
+        slug_path = quote(slug, safe="")
+        envelope = await self._get_envelope(
+            f"/api/v2/listings/collection/{slug_path}/best",
+            params,
+            _LISTINGS_ADAPTER,
+        )
+        return envelope["listings"], envelope.get("next")
+
     async def get_nft(
         self,
         chain: ChainIdentifier,
@@ -231,6 +488,54 @@ class OpenSeaClient:
             _NFT_ADAPTER,
         )
         return envelope["nft"]
+
+    async def _get_profile_orders(
+        self,
+        address: str,
+        *,
+        received: bool,
+        after: str | None = None,
+        limit: int = 50,
+        collection_slugs: Sequence[str] | None = None,
+        chains: Sequence[ChainIdentifier] | None = None,
+        sort_by: ProfileOrderSortBy | ProfileOffersReceivedSortBy,
+        sort_direction: SortDirection = SortDirection.DESC,
+    ) -> tuple[list[Offer], str | None]:
+        params = self._profile_order_params(
+            after=after,
+            limit=limit,
+            collection_slugs=collection_slugs,
+            chains=chains,
+            sort_by=sort_by,
+            sort_direction=sort_direction,
+        )
+        address_path = quote(address, safe="")
+        suffix = "offers_received" if received else "offers"
+        envelope = await self._get_envelope(
+            f"/api/v2/account/{address_path}/{suffix}", params, _OFFERS_ADAPTER
+        )
+        return envelope["offers"], envelope.get("next")
+
+    @staticmethod
+    def _profile_order_params(
+        *,
+        after: str | None,
+        limit: int,
+        collection_slugs: Sequence[str] | None,
+        chains: Sequence[ChainIdentifier] | None,
+        sort_by: ProfileOrderSortBy | ProfileOffersReceivedSortBy,
+        sort_direction: SortDirection,
+    ) -> list[tuple[str, str | int]]:
+        params: list[tuple[str, str | int]] = []
+        if after is not None:
+            params.append(("after", after))
+        params.append(("limit", limit))
+        if collection_slugs is not None:
+            params.extend(("collection_slugs", slug) for slug in collection_slugs)
+        if chains is not None:
+            params.extend(("chains", chain.value) for chain in chains)
+        params.extend([("sort_by", sort_by.value), ("sort_direction", sort_direction.value)])
+        return params
 
     async def aclose(self) -> None:
         if self._owns_http_client and not self._http_client.is_closed:

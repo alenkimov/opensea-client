@@ -4,6 +4,9 @@ export default function openseaFixes() {
     "CollectionOfferAggregatesPaginatedResponse",
     "CollectionPaginatedResponse",
     "NftListResponse",
+    "OffersResponse",
+    "ListingsResponse",
+    "TokenBalancePaginatedResponse",
   ];
 
   return {
@@ -22,7 +25,7 @@ export default function openseaFixes() {
             },
           },
         }),
-        "stringify-string-parameter-examples": () => ({
+        "normalize-examples": () => ({
           Parameter: {
             leave(parameter) {
               const example = parameter.example;
@@ -34,6 +37,37 @@ export default function openseaFixes() {
               ) {
                 parameter.example =
                   typeof example === "object" ? JSON.stringify(example) : String(example);
+              }
+              if (
+                parameter.schema?.type === "array" &&
+                typeof example === "string"
+              ) {
+                parameter.example = example.split(",").map((item) => item.trim());
+              }
+              if (
+                Array.isArray(parameter.schema?.enum) &&
+                typeof parameter.example === "string" &&
+                !parameter.schema.enum.includes(parameter.example)
+              ) {
+                const matchingValue = parameter.schema.enum.find(
+                  (value) =>
+                    typeof value === "string" &&
+                    value.toLowerCase() === parameter.example.toLowerCase(),
+                );
+                if (matchingValue !== undefined) {
+                  parameter.example = matchingValue;
+                }
+              }
+            },
+          },
+          Schema: {
+            leave(schema) {
+              if (
+                schema.type === "string" &&
+                schema.example !== undefined &&
+                typeof schema.example !== "string"
+              ) {
+                schema.example = String(schema.example);
               }
             },
           },

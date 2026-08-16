@@ -21,6 +21,8 @@ from opensea import (
     OpenSeaInvalidResponseError,
     OpenSeaNotFoundError,
     OpenSeaTransportError,
+    ProfileOffersReceivedSortBy,
+    ProfileOrderSortBy,
     SaleEvent,
     SortDirection,
     TopCollectionsSortBy,
@@ -139,6 +141,64 @@ def offer_aggregate_payload() -> dict[str, object]:
     }
 
 
+def offer_payload() -> dict[str, object]:
+    return {
+        "order_hash": "0xoffer",
+        "chain": "ethereum",
+        "remaining_quantity": 1,
+        "status": "ACTIVE",
+        "asset": {"contract": "0xabc", "identifier": "42"},
+        "price": {"currency": "WETH", "decimals": 18, "value": "900000000000000000"},
+        "protocol_data": protocol_data_payload(),
+    }
+
+
+def listing_payload() -> dict[str, object]:
+    return {
+        "order_hash": "0xlisting",
+        "chain": "ethereum",
+        "remaining_quantity": 1,
+        "status": "ACTIVE",
+        "type": "basic",
+        "asset": {"contract": "0xabc", "identifier": "42"},
+        "protocol_data": protocol_data_payload(),
+        "price": {
+            "current": {
+                "currency": "ETH",
+                "decimals": 18,
+                "value": "1000000000000000000",
+            }
+        },
+    }
+
+
+def protocol_data_payload() -> dict[str, object]:
+    item = {
+        "itemType": 2,
+        "token": "0xabc",
+        "identifierOrCriteria": "42",
+        "startAmount": "1",
+        "endAmount": "1",
+    }
+    return {
+        "parameters": {
+            "offerer": "0xofferer",
+            "offer": [item],
+            "consideration": [{**item, "recipient": "0xrecipient"}],
+            "startTime": "1700000000",
+            "endTime": "1700003600",
+            "orderType": 0,
+            "zone": "0xzone",
+            "zoneHash": "0xhash",
+            "salt": "123",
+            "conduitKey": "0xconduit",
+            "totalOriginalConsiderationItems": 1,
+            "counter": 0,
+        },
+        "signature": "0xsignature",
+    }
+
+
 def test_list_events_uses_repeated_event_type_params_and_parses_response() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "GET"
@@ -177,6 +237,83 @@ def test_list_events_uses_repeated_event_type_params_and_parses_response() -> No
 
     assert next_cursor == "next-page"
     assert isinstance(events[0], SaleEvent)
+
+
+def test_list_events_by_account_serializes_filters_and_encodes_address() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.raw_path.split(b"?", 1)[0] == (b"/api/v2/events/accounts/0xabc%2Fdef")
+        assert request.url.params.multi_items() == [
+            ("after", "10"),
+            ("before", "20"),
+            ("event_type", "sale"),
+            ("event_type", "transfer"),
+            ("chain", "ethereum"),
+            ("limit", "50"),
+            ("next", "cursor"),
+        ]
+        return httpx.Response(
+            200,
+            json={"asset_events": [sale_payload()], "next": "next-page"},
+        )
+
+    client, http_client = make_client(handler)
+    try:
+        events, next_cursor = run(
+            client.list_events_by_account(
+                "0xabc/def",
+                after=10,
+                before=20,
+                event_type=[EventType.SALE, EventType.TRANSFER],
+                chain=ChainIdentifier.ETHEREUM,
+                limit=50,
+                next_cursor="cursor",
+            )
+        )
+    finally:
+        run(http_client.aclose())
+
+    assert isinstance(events[0], SaleEvent)
+    assert next_cursor == "next-page"
+
+
+def test_list_events_by_nft_serializes_filters_and_encodes_path() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.raw_path.split(b"?", 1)[0] == (
+            b"/api/v2/events/chain/ethereum/contract/0xabc%2Fdef/nfts/token%2F42"
+        )
+        assert request.url.params.multi_items() == [
+            ("after", "10"),
+            ("before", "20"),
+            ("event_type", "sale"),
+            ("limit", "200"),
+            ("next", "cursor"),
+        ]
+        return httpx.Response(
+            200,
+            json={"asset_events": [sale_payload()], "next": None},
+        )
+
+    client, http_client = make_client(handler)
+    try:
+        events, next_cursor = run(
+            client.list_events_by_nft(
+                ChainIdentifier.ETHEREUM,
+                "0xabc/def",
+                "token/42",
+                after=10,
+                before=20,
+                event_type=EventType.SALE,
+                limit=200,
+                next_cursor="cursor",
+            )
+        )
+    finally:
+        run(http_client.aclose())
+
+    assert isinstance(events[0], SaleEvent)
+    assert next_cursor is None
 
 
 def test_get_collection_sales_forces_sale_filter() -> None:
@@ -338,12 +475,193 @@ def test_get_nfts_by_collection_serializes_filters() -> None:
     assert next_cursor == "def"
 
 
+def test_get_nfts_by_account_serializes_filters() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v2/chain/ethereum/account/0xowner/nfts"
+        assert request.url.params.multi_items() == [
+            ("collection", "example"),
+            ("limit", "100"),
+            ("next", "abc"),
+        ]
+        return httpx.Response(200, json={"nfts": [nft_payload()], "next": None})
+
+    client, http_client = make_client(handler)
+    try:
+        nfts, next_cursor = run(
+            client.get_nfts_by_account(
+                ChainIdentifier.ETHEREUM,
+                "0xowner",
+                collection="example",
+                limit=100,
+                next_cursor="abc",
+            )
+        )
+    finally:
+        run(http_client.aclose())
+
+    assert nfts[0].identifier == "42"
+    assert next_cursor is None
+
+
+def test_account_orders_and_balances_use_documented_pagination() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/offers_received"):
+            assert request.url.params.multi_items() == [
+                ("after", "cursor"),
+                ("limit", "25"),
+                ("collection_slugs", "one"),
+                ("collection_slugs", "two"),
+                ("chains", "ethereum"),
+                ("sort_by", "TOP_ASSET_OFFER"),
+                ("sort_direction", "desc"),
+            ]
+            return httpx.Response(200, json={"offers": [offer_payload()]})
+        if request.url.path.endswith("/offers"):
+            assert request.url.params.multi_items() == [
+                ("limit", "101"),
+                ("sort_by", "END_TIME"),
+                ("sort_direction", "desc"),
+            ]
+            return httpx.Response(200, json={"offers": [offer_payload()]})
+        if request.url.path.endswith("/listings"):
+            assert request.url.params.multi_items() == [
+                ("limit", "101"),
+                ("sort_by", "END_TIME"),
+                ("sort_direction", "desc"),
+            ]
+            return httpx.Response(200, json={"listings": [listing_payload()]})
+        assert request.url.path.endswith("/tokens")
+        assert request.url.params.multi_items() == [
+            ("limit", "20"),
+            ("chains", "ethereum"),
+            ("sort_direction", "desc"),
+            ("disable_spam_filtering", "false"),
+        ]
+        return httpx.Response(
+            200,
+            json={
+                "token_balances": [
+                    {
+                        "address": "0xweth",
+                        "chain": "ethereum",
+                        "name": "Wrapped Ether",
+                        "symbol": "WETH",
+                        "usd_price": "2500.25",
+                        "decimals": 18,
+                        "opensea_url": "https://opensea.io/token/ethereum/0xweth",
+                        "quantity": "1.25",
+                        "usd_value": "3125.3125",
+                    }
+                ]
+            },
+        )
+
+    async def exercise(client: OpenSeaClient):
+        received_offers = await client.get_profile_offers_received(
+            "0xowner",
+            after="cursor",
+            limit=25,
+            collection_slugs=["one", "two"],
+            chains=[ChainIdentifier.ETHEREUM],
+            sort_by=ProfileOffersReceivedSortBy.TOP_ASSET_OFFER,
+        )
+        made_offers = await client.get_profile_offers(
+            "0xowner", limit=101, sort_by=ProfileOrderSortBy.END_TIME
+        )
+        listings = await client.get_profile_listings(
+            "0xowner", limit=101, sort_by=ProfileOrderSortBy.END_TIME
+        )
+        balances = await client.get_token_balances_by_account(
+            "0xowner", chains=[ChainIdentifier.ETHEREUM]
+        )
+        return received_offers, made_offers, listings, balances
+
+    client, http_client = make_client(handler)
+    try:
+        (received, _), (made, _), (listings, _), (balances, _) = run(exercise(client))
+    finally:
+        run(http_client.aclose())
+
+    assert received[0].price.value == Decimal(900000000000000000)
+    assert made[0].protocol_data is not None
+    assert made[0].protocol_data.parameters.offer[0].start_amount == Decimal(1)
+    assert listings[0].price.current.value == Decimal(1000000000000000000)
+    assert balances[0].quantity == Decimal("1.25")
+
+
+def test_best_nft_offer_and_listing_parse_direct_models() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "/offers/" in request.url.path:
+            return httpx.Response(200, json=offer_payload())
+        if request.url.path == "/api/v2/listings/collection/example/best":
+            assert request.url.params.multi_items() == [
+                ("include_private_listings", "false"),
+                ("traits", "[]"),
+                ("limit", "20"),
+                ("next", "cursor"),
+            ]
+            return httpx.Response(
+                200,
+                json={"listings": [listing_payload()], "next": None},
+            )
+        assert request.url.params["include_private_listings"] == "false"
+        return httpx.Response(200, json=listing_payload())
+
+    async def exercise(client: OpenSeaClient):
+        return (
+            await client.get_best_offer_nft("example", "42"),
+            await client.get_best_listing_nft("example", "42", include_private_listings=False),
+            await client.get_best_listings_collection(
+                "example",
+                include_private_listings=False,
+                traits="[]",
+                limit=20,
+                next_cursor="cursor",
+            ),
+        )
+
+    client, http_client = make_client(handler)
+    try:
+        offer, listing, (listings, next_cursor) = run(exercise(client))
+    finally:
+        run(http_client.aclose())
+
+    assert offer.order_hash == "0xoffer"
+    assert listing.order_hash == "0xlisting"
+    assert listings[0].order_hash == "0xlisting"
+    assert next_cursor is None
+
+
+def test_order_protocol_data_is_fully_validated() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = offer_payload()
+        protocol_data = payload["protocol_data"]
+        assert isinstance(protocol_data, dict)
+        parameters = protocol_data["parameters"]
+        assert isinstance(parameters, dict)
+        del parameters["counter"]
+        return httpx.Response(200, json=payload)
+
+    client, http_client = make_client(handler)
+    try:
+        with pytest.raises(OpenSeaInvalidResponseError):
+            run(client.get_best_offer_nft("example", "42"))
+    finally:
+        run(http_client.aclose())
+
+
 def test_paginated_endpoints_accept_explicit_null_next() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/api/v2/collections/top":
             payload: dict[str, object] = {"collections": [], "next": None}
         elif request.url.path.endswith("/offer_aggregates"):
             payload = {"offer_aggregates": [], "next": None}
+        elif request.url.path.endswith("/tokens"):
+            payload = {"token_balances": [], "next": None}
+        elif request.url.path.endswith("/offers") or request.url.path.endswith("/offers_received"):
+            payload = {"offers": [], "next": None}
+        elif "/listings" in request.url.path:
+            payload = {"listings": [], "next": None}
         elif request.url.path.endswith("/nfts"):
             payload = {"nfts": [], "next": None}
         else:
@@ -352,11 +670,19 @@ def test_paginated_endpoints_accept_explicit_null_next() -> None:
 
     async def fetch_pages(client: OpenSeaClient) -> list[str | None]:
         pages = [
+            await client.list_events_by_account("0xaccount"),
             await client.list_events_by_collection("example"),
+            await client.list_events_by_nft(ChainIdentifier.ETHEREUM, "0xcontract", "42"),
             await client.get_collection_sales("example"),
             await client.get_top_collections(),
             await client.get_collection_offer_aggregates("example"),
             await client.get_nfts_by_collection("example"),
+            await client.get_nfts_by_account(ChainIdentifier.ETHEREUM, "0xaccount"),
+            await client.get_token_balances_by_account("0xaccount"),
+            await client.get_profile_offers("0xaccount"),
+            await client.get_profile_offers_received("0xaccount"),
+            await client.get_profile_listings("0xaccount"),
+            await client.get_best_listings_collection("example"),
         ]
         return [next_cursor for _, next_cursor in pages]
 
@@ -366,7 +692,7 @@ def test_paginated_endpoints_accept_explicit_null_next() -> None:
     finally:
         run(http_client.aclose())
 
-    assert cursors == [None, None, None, None, None]
+    assert cursors == [None] * 13
 
 
 def test_get_nft_encodes_path_segments() -> None:

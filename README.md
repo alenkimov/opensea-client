@@ -41,14 +41,24 @@ asyncio.run(main())
 
 Доступные методы:
 
+- `list_events_by_account()` → `(list[AssetEvent], next_cursor)`;
 - `list_events_by_collection()` → `(list[AssetEvent], next_cursor)`;
+- `list_events_by_nft()` → `(list[AssetEvent], next_cursor)`;
 - `get_collection_sales()` → `(list[SaleEvent], next_cursor)`;
 - `get_top_collections()` → `(list[Collection], next_cursor)`;
 - `get_collection()` → `CollectionDetailed`;
 - `get_collection_offer_aggregates()` → `(list[CollectionOfferAggregate], next_cursor)`;
 - `get_collection_stats()` → `(list[CollectionIntervalStat], TotalCollectionStats)`;
 - `get_nfts_by_collection()` → `(list[Nft], next_cursor)`;
-- `get_nft()` → `NftDetailed`.
+- `get_nfts_by_account()` → `(list[Nft], next_cursor)`;
+- `get_nft()` → `NftDetailed`;
+- `get_token_balances_by_account()` → `(list[TokenBalance], next_cursor)`;
+- `get_profile_listings()` → `(list[Listing], next_cursor)`;
+- `get_profile_offers()` → `(list[Offer], next_cursor)`;
+- `get_profile_offers_received()` → `(list[Offer], next_cursor)`;
+- `get_best_offer_nft()` → `Offer`;
+- `get_best_listing_nft()` → `Listing`;
+- `get_best_listings_collection()` → `(list[Listing], next_cursor)`.
 
 Можно передать `proxy=Proxy(...)` либо готовый `httpx.AsyncClient`. Эти параметры нельзя
 совмещать: транспорт и прокси переданного клиента настраивает вызывающая сторона. Внешний клиент

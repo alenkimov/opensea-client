@@ -58,3 +58,38 @@ class TopCollectionsSortBy(StrEnum):
 class SortDirection(StrEnum):
     ASC = "asc"
     DESC = "desc"
+
+
+class ProfileOrderSortBy(StrEnum):
+    START_TIME = "START_TIME"
+    END_TIME = "END_TIME"
+
+
+class ProfileOffersReceivedSortBy(StrEnum):
+    START_TIME = "START_TIME"
+    TOP_ASSET_OFFER = "TOP_ASSET_OFFER"
+
+
+class TokenBalanceSortBy(StrEnum):
+    USD_VALUE = "USD_VALUE"
+    MARKET_CAP = "MARKET_CAP"
+    ONE_DAY_VOLUME = "ONE_DAY_VOLUME"
+    PRICE = "PRICE"
+    ONE_DAY_PRICE_CHANGE = "ONE_DAY_PRICE_CHANGE"
+    SEVEN_DAY_PRICE_CHANGE = "SEVEN_DAY_PRICE_CHANGE"
+
+
+class OrderStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+    FULFILLED = "FULFILLED"
+    EXPIRED = "EXPIRED"
+    CANCELLED = "CANCELLED"
+
+
+class TokenBalanceStatus(StrEnum):
+    OK = "OK"
+    WARNING = "WARNING"
+    SPAM = "SPAM"
+    LOW_LIQUIDITY = "LOW_LIQUIDITY"
+    LOW_VALUE = "LOW_VALUE"

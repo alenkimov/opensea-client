@@ -72,6 +72,135 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/v2/offers/collection/{slug}/nfts/{identifier}/best:
+    get:
+      tags:
+        - Offer Endpoints
+      summary: Get best offer by NFT
+      description: Get the best offer for an NFT.
+      operationId: get_best_offer_nft
+      parameters:
+        - name: slug
+          in: path
+          description: Unique string to identify a collection on OpenSea
+          required: true
+          schema:
+            type: string
+        - name: identifier
+          in: path
+          description: NFT token id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Offer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v2/listings/collection/{slug}/nfts/{identifier}/best:
+    get:
+      tags:
+        - Listing Endpoints
+      summary: Get best listing by NFT
+      description: Get the best listing for an NFT.
+      operationId: get_best_listing_nft
+      parameters:
+        - name: slug
+          in: path
+          description: Unique string to identify a collection on OpenSea
+          required: true
+          schema:
+            type: string
+        - name: identifier
+          in: path
+          description: NFT token id
+          required: true
+          schema:
+            type: string
+        - name: include_private_listings
+          in: query
+          description: Whether to include private listings; defaults to false
+          required: false
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Listing'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v2/listings/collection/{slug}/best:
+    get:
+      tags:
+        - Listing Endpoints
+      summary: Get best listings by collection
+      description: 'Get the best listings for a collection sorted by price ascending. Optionally filter by item traits using the ''traits'' query parameter with a JSON array of trait filters. Multiple traits are AND-combined (items must match all). Note: results are not deduplicated by token ID — if a token has multiple listings, each listing is returned individually. Filter client-side if you need unique tokens. Example: ?traits=[{"traitType":"Background","value":"Red"}]'
+      operationId: get_best_listings_collection
+      parameters:
+        - name: slug
+          in: path
+          description: Unique string to identify a collection on OpenSea
+          required: true
+          schema:
+            type: string
+        - name: include_private_listings
+          in: query
+          description: Whether to include private listings; defaults to false
+          required: false
+          schema:
+            type: boolean
+        - name: traits
+          in: query
+          description: 'JSON array of trait filters to narrow listings by item traits. Each object has ''traitType'' and ''value'' fields. Multiple traits are AND-combined (items must match all). Example: [{"traitType":"Background","value":"Red"}]'
+          required: false
+          schema:
+            type: string
+          example: '[{"traitType":"Background","value":"Red"}]'
+        - name: limit
+          in: query
+          description: Number of items to return per page
+          required: false
+          schema:
+            type: integer
+            format: int32
+            description: Number of items to return per page
+            example: 20
+            maximum: 200
+            minimum: 1
+          example: 20
+        - name: next
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ListingsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/v2/events/collection/{slug}:
     get:
       tags:
@@ -152,6 +281,175 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v2/events/chain/{chain}/contract/{address}/nfts/{identifier}:
+    get:
+      tags:
+        - Analytics Endpoints
+      summary: Get events (by NFT)
+      description: Get a list of events for a specific NFT.
+      operationId: list_events_by_nft
+      parameters:
+        - name: chain
+          in: path
+          description: The blockchain on which to filter the results
+          required: true
+          schema:
+            $ref: '#/components/schemas/ChainIdentifier'
+          example: ethereum
+        - name: address
+          in: path
+          description: The unique public blockchain identifier for the contract
+          required: true
+          schema:
+            type: string
+          example: 0x8ba1f109551bD432803012645Hac136c94C19D6e
+        - name: identifier
+          in: path
+          description: The NFT token id
+          required: true
+          schema:
+            type: string
+          example: '1'
+        - name: after
+          in: query
+          description: Only show events after this timestamp (Unix timestamp in seconds)
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: before
+          in: query
+          description: Only show events before this timestamp (Unix timestamp in seconds)
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: event_type
+          in: query
+          description: Filter by event types. To get order invalidation and revalidation events, please use the Stream API. The order status can also be checked on the Get Order endpoint.
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              enum:
+                - sale
+                - transfer
+                - mint
+                - listing
+                - offer
+                - trait_offer
+                - collection_offer
+        - name: limit
+          in: query
+          description: Number of items to return per page
+          required: false
+          schema:
+            type: integer
+            format: int32
+            description: Number of items to return per page
+            example: 20
+            maximum: 200
+            minimum: 1
+          example: 20
+        - name: next
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/AssetEventsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v2/events/accounts/{address}:
+    get:
+      tags:
+        - Analytics Endpoints
+      summary: Get events (by account)
+      description: Get a list of events for an account.
+      operationId: list_events_by_account
+      parameters:
+        - name: address
+          in: path
+          description: The blockchain address of the account
+          required: true
+          schema:
+            type: string
+          example: 0x8ba1f109551bD432803012645Hac136c94C19D6e
+        - name: after
+          in: query
+          description: Only show events after this timestamp (Unix timestamp in seconds)
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: before
+          in: query
+          description: Only show events before this timestamp (Unix timestamp in seconds)
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: event_type
+          in: query
+          description: Filter by event types. To get order invalidation and revalidation events, please use the Stream API. The order status can also be checked on the Get Order endpoint.
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              enum:
+                - sale
+                - transfer
+                - mint
+                - listing
+                - offer
+                - trait_offer
+                - collection_offer
+        - name: chain
+          in: query
+          description: Filter by blockchain
+          required: false
+          schema:
+            $ref: '#/components/schemas/ChainIdentifier'
+          example: ethereum
+        - name: limit
+          in: query
+          description: Number of items to return per page
+          required: false
+          schema:
+            type: integer
+            format: int32
+            description: Number of items to return per page
+            example: 20
+            maximum: 200
+            minimum: 1
+          example: 20
+        - name: next
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/AssetEventsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '500':
           $ref: '#/components/responses/InternalError'
   /api/v2/collections/{slug}/stats:
@@ -256,7 +554,9 @@ paths:
             type: array
             items:
               $ref: '#/components/schemas/ChainIdentifier'
-          example: ethereum,base
+          example:
+            - ethereum
+            - base
         - name: category
           in: query
           description: Category to filter by (e.g. art, gaming, memberships, music, pfps, photography, domain-names, virtual-worlds, sports-collectibles, physical-collectibles).
@@ -389,6 +689,373 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/v2/chain/{chain}/account/{address}/nfts:
+    get:
+      tags:
+        - NFT Endpoints
+      summary: Get NFTs by account
+      description: Get all NFTs owned by a specific account on a blockchain, with optional collection filtering.
+      operationId: get_nfts_by_account
+      parameters:
+        - name: address
+          in: path
+          description: Account address
+          required: true
+          schema:
+            type: string
+        - name: chain
+          in: path
+          description: The blockchain on which to filter the results
+          required: true
+          schema:
+            $ref: '#/components/schemas/ChainIdentifier'
+          example: ethereum
+        - name: collection
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Number of items to return per page
+          required: false
+          schema:
+            type: integer
+            format: int32
+            description: Number of items to return per page
+            example: 20
+            maximum: 200
+            minimum: 1
+          example: 20
+        - name: next
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/NftListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v2/account/{address}/tokens:
+    get:
+      tags:
+        - Token Endpoints
+      summary: Get token balances by account
+      description: Get fungible token balances for a specific wallet address. Returns quantity (in display units, not raw/wei), USD value, and token metadata for each token held.
+      operationId: get_token_balances_by_account
+      parameters:
+        - name: address
+          in: path
+          description: Wallet address
+          required: true
+          schema:
+            type: string
+          example: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045'
+        - name: limit
+          in: query
+          description: 'Number of results to return (default: 20, max: 100)'
+          required: false
+          schema:
+            type: integer
+            format: int32
+            default: 20
+          example: 20
+        - name: chains
+          in: query
+          description: Filter by blockchain(s)
+          required: false
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/ChainIdentifier'
+          example:
+            - ethereum
+        - name: sort_by
+          in: query
+          description: 'Sort field (default: usd_value)'
+          required: false
+          schema:
+            type: string
+            enum:
+              - USD_VALUE
+              - MARKET_CAP
+              - ONE_DAY_VOLUME
+              - PRICE
+              - ONE_DAY_PRICE_CHANGE
+              - SEVEN_DAY_PRICE_CHANGE
+          example: USD_VALUE
+        - name: sort_direction
+          in: query
+          description: 'Sort direction (default: desc)'
+          required: false
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+          example: desc
+        - name: disable_spam_filtering
+          in: query
+          description: When true, disables OpenSea's heuristic spam filtering and returns tokens that would normally be hidden (low liquidity, dust, flagged-as-spam, etc.). Tokens flagged for trust & safety enforcement or as malicious are still filtered out regardless. Surfaced tokens carry a `status` field on the response indicating why they would have been filtered.
+          required: false
+          schema:
+            type: boolean
+            default: false
+          example: false
+        - name: cursor
+          in: query
+          description: Pagination cursor for next page
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/TokenBalancePaginatedResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v2/account/{address}/offers_received:
+    get:
+      tags:
+        - Account Endpoints
+      summary: Get offers received by an account
+      description: Get a paginated list of offers received on items owned by a wallet address.
+      operationId: get_profile_offers_received
+      parameters:
+        - name: address
+          in: path
+          description: The wallet address
+          required: true
+          schema:
+            type: string
+          example: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045'
+        - name: after
+          in: query
+          description: Cursor for pagination
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Number of results to return
+          required: false
+          schema:
+            type: integer
+            format: int32
+            default: 50
+        - name: collection_slugs
+          in: query
+          description: Filter by collection slugs
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+        - name: chains
+          in: query
+          description: Filter by chains
+          required: false
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/ChainIdentifier'
+        - name: sort_by
+          in: query
+          description: Sort by field
+          required: false
+          schema:
+            type: string
+            default: START_TIME
+            enum:
+              - START_TIME
+              - TOP_ASSET_OFFER
+        - name: sort_direction
+          in: query
+          description: Sort direction
+          required: false
+          schema:
+            type: string
+            default: desc
+            enum:
+              - asc
+              - desc
+      responses:
+        '200':
+          description: Offers received for account
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/OffersResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v2/account/{address}/offers:
+    get:
+      tags:
+        - Account Endpoints
+      summary: Get active offers made by an account
+      description: Get a paginated list of active offers made by a wallet address.
+      operationId: get_profile_offers
+      parameters:
+        - name: address
+          in: path
+          description: The wallet address
+          required: true
+          schema:
+            type: string
+          example: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045'
+        - name: after
+          in: query
+          description: Cursor for pagination
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Number of results to return
+          required: false
+          schema:
+            type: integer
+            format: int32
+            default: 50
+        - name: collection_slugs
+          in: query
+          description: Filter by collection slugs
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+        - name: chains
+          in: query
+          description: Filter by chains
+          required: false
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/ChainIdentifier'
+        - name: sort_by
+          in: query
+          description: Sort by field
+          required: false
+          schema:
+            type: string
+            default: START_TIME
+            enum:
+              - START_TIME
+              - END_TIME
+        - name: sort_direction
+          in: query
+          description: Sort direction
+          required: false
+          schema:
+            type: string
+            default: desc
+            enum:
+              - asc
+              - desc
+      responses:
+        '200':
+          description: Active offers for account
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/OffersResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v2/account/{address}/listings:
+    get:
+      tags:
+        - Account Endpoints
+      summary: Get active listings for an account
+      description: Get a paginated list of active listings created by a wallet address.
+      operationId: get_profile_listings
+      parameters:
+        - name: address
+          in: path
+          description: The wallet address
+          required: true
+          schema:
+            type: string
+          example: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045'
+        - name: after
+          in: query
+          description: Cursor for pagination
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Number of results to return
+          required: false
+          schema:
+            type: integer
+            format: int32
+            default: 50
+        - name: collection_slugs
+          in: query
+          description: Filter by collection slugs
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+        - name: chains
+          in: query
+          description: Filter by chains
+          required: false
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/ChainIdentifier'
+        - name: sort_by
+          in: query
+          description: Sort by field
+          required: false
+          schema:
+            type: string
+            default: START_TIME
+            enum:
+              - START_TIME
+              - END_TIME
+        - name: sort_direction
+          in: query
+          description: Sort direction
+          required: false
+          schema:
+            type: string
+            default: desc
+            enum:
+              - asc
+              - desc
+      responses:
+        '200':
+          description: Active listings for account
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ListingsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
   schemas:
     ChainIdentifier:
@@ -426,6 +1093,29 @@ components:
         - robinhood
         - stablechain
       example: ethereum
+    ConsiderationItem:
+      type: object
+      properties:
+        itemType:
+          type: integer
+          format: int32
+        token:
+          type: string
+        identifierOrCriteria:
+          type: string
+        startAmount:
+          type: string
+        endAmount:
+          type: string
+        recipient:
+          type: string
+      required:
+        - endAmount
+        - identifierOrCriteria
+        - itemType
+        - recipient
+        - startAmount
+        - token
     CollectionInner:
       type: object
       properties:
@@ -457,6 +1147,26 @@ components:
             $ref: '#/components/schemas/NumericTraitData'
         encoded_token_ids:
           type: string
+    Item:
+      type: object
+      properties:
+        itemType:
+          type: integer
+          format: int32
+        token:
+          type: string
+        identifierOrCriteria:
+          type: string
+        startAmount:
+          type: string
+        endAmount:
+          type: string
+      required:
+        - endAmount
+        - identifierOrCriteria
+        - itemType
+        - startAmount
+        - token
     NumericTraitData:
       type: object
       properties:
@@ -470,6 +1180,123 @@ components:
           format: float
       required:
         - type
+    Offer:
+      allOf:
+        - $ref: '#/components/schemas/ListingOrOffer'
+        - type: object
+          properties:
+            order_hash:
+              type: string
+            chain:
+              type: string
+            protocol_data:
+              $ref: '#/components/schemas/ProtocolData'
+            protocol_address:
+              type: string
+            asset:
+              $ref: '#/components/schemas/OrderAsset'
+            remaining_quantity:
+              type: integer
+              format: int64
+            order_created_at:
+              type: integer
+              format: int64
+            criteria:
+              $ref: '#/components/schemas/Criteria'
+            price:
+              $ref: '#/components/schemas/Price'
+            status:
+              type: string
+              enum:
+                - ACTIVE
+                - INACTIVE
+                - FULFILLED
+                - EXPIRED
+                - CANCELLED
+      required:
+        - chain
+        - order_hash
+        - price
+        - remaining_quantity
+        - status
+    OrderAsset:
+      type: object
+      properties:
+        identifier:
+          type: string
+        contract:
+          type: string
+      required:
+        - contract
+    Parameters:
+      type: object
+      properties:
+        offerer:
+          type: string
+        offer:
+          type: array
+          items:
+            $ref: '#/components/schemas/Item'
+        consideration:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConsiderationItem'
+        startTime:
+          type: string
+        endTime:
+          type: string
+        orderType:
+          type: integer
+          format: int32
+        zone:
+          type: string
+        zoneHash:
+          type: string
+        salt:
+          type: string
+        conduitKey:
+          type: string
+        totalOriginalConsiderationItems:
+          type: integer
+          format: int32
+        counter:
+          type: integer
+      required:
+        - conduitKey
+        - consideration
+        - counter
+        - endTime
+        - offer
+        - offerer
+        - orderType
+        - salt
+        - startTime
+        - totalOriginalConsiderationItems
+        - zone
+        - zoneHash
+    Price:
+      type: object
+      properties:
+        currency:
+          type: string
+        decimals:
+          type: integer
+          format: int32
+        value:
+          type: string
+      required:
+        - currency
+        - decimals
+        - value
+    ProtocolData:
+      type: object
+      properties:
+        parameters:
+          $ref: '#/components/schemas/Parameters'
+        signature:
+          type: string
+      required:
+        - parameters
     TraitData:
       type: object
       properties:
@@ -480,6 +1307,53 @@ components:
       required:
         - type
         - value
+    Listing:
+      allOf:
+        - $ref: '#/components/schemas/ListingOrOffer'
+        - type: object
+          properties:
+            order_hash:
+              type: string
+            chain:
+              type: string
+            protocol_data:
+              $ref: '#/components/schemas/ProtocolData'
+            protocol_address:
+              type: string
+            asset:
+              $ref: '#/components/schemas/OrderAsset'
+            remaining_quantity:
+              type: integer
+              format: int64
+            order_created_at:
+              type: integer
+              format: int64
+            price:
+              $ref: '#/components/schemas/ListingPrice'
+            type:
+              type: string
+            status:
+              type: string
+              enum:
+                - ACTIVE
+                - INACTIVE
+                - FULFILLED
+                - EXPIRED
+                - CANCELLED
+      required:
+        - chain
+        - order_hash
+        - price
+        - remaining_quantity
+        - status
+        - type
+    ListingPrice:
+      type: object
+      properties:
+        current:
+          $ref: '#/components/schemas/Price'
+      required:
+        - current
     AgentBindingResponse:
       type: object
       properties:
@@ -756,6 +1630,33 @@ components:
       required:
         - address
         - chain
+    ListingOrOffer: {}
+    OffersResponse:
+      type: object
+      properties:
+        offers:
+          type: array
+          items:
+            $ref: '#/components/schemas/Offer'
+        next:
+          type:
+            - string
+            - 'null'
+      required:
+        - offers
+    ListingsResponse:
+      type: object
+      properties:
+        listings:
+          type: array
+          items:
+            $ref: '#/components/schemas/Listing'
+        next:
+          type:
+            - string
+            - 'null'
+      required:
+        - listings
     AssetEventsResponse:
       type: object
       properties:
@@ -1235,6 +2136,93 @@ components:
           $ref: '#/components/schemas/NftDetailed'
       required:
         - nft
+    TokenBalancePaginatedResponse:
+      type: object
+      description: Paginated list of token balances
+      properties:
+        token_balances:
+          type: array
+          description: List of token balances
+          items:
+            $ref: '#/components/schemas/TokenBalanceResponse'
+        next:
+          type:
+            - string
+            - 'null'
+          description: Cursor for the next page of results
+      required:
+        - token_balances
+    TokenBalanceResponse:
+      type: object
+      description: Token balance for a wallet address
+      properties:
+        address:
+          type: string
+          description: The contract address of the token
+          example: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'
+        chain:
+          type: string
+          description: The blockchain the token is on
+          example: ethereum
+        name:
+          type: string
+          description: The display name of the token
+          example: USDC
+        symbol:
+          type: string
+          description: The ticker symbol of the token
+          example: USDC
+        image_url:
+          type: string
+          description: URL of the token's image
+        usd_price:
+          type: string
+          description: Current price in USD
+          example: '1'
+        decimals:
+          type: integer
+          format: int32
+          description: Number of decimal places
+          example: 6
+        opensea_url:
+          type: string
+          description: URL to the token page on OpenSea
+        quantity:
+          type: string
+          description: Token balance in display units (divided by 10^decimals), not raw/wei
+          example: '1.5'
+        usd_value:
+          type: string
+          description: Total USD value of the balance (quantity * usd_price)
+          example: '3518.51835185'
+        status:
+          type: string
+          default: OK
+          description: 'Token status relative to OpenSea''s spam-classification rules. `OK` for tokens that pass all spam filters (the normal case); populated with a more specific value for tokens surfaced via `disable_spam_filtering=true` that would normally be hidden. Categories are intentionally broad and may evolve. Possible values, in decreasing severity: `WARNING` (flagged as risky/suspicious — caution advised), `SPAM` (flagged as spam), `LOW_LIQUIDITY` (insufficient pool liquidity), `LOW_VALUE` (dust holding < $0.01), `OK` (passes all filters).'
+          enum:
+            - OK
+            - WARNING
+            - SPAM
+            - LOW_LIQUIDITY
+            - LOW_VALUE
+        base_token_liquidity_usd:
+          type: string
+          description: USD value of base token reserves in the top liquidity pool paired with a curated quote token
+          example: '125000.5'
+        quote_token_liquidity_usd:
+          type: string
+          description: USD value of quote token reserves in the top liquidity pool paired with a curated quote token
+          example: '125000.5'
+      required:
+        - address
+        - chain
+        - decimals
+        - name
+        - opensea_url
+        - quantity
+        - symbol
+        - usd_price
+        - usd_value
     BitcoinAddress:
       allOf:
         - $ref: '#/components/schemas/BlockchainAddress'
